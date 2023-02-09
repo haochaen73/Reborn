@@ -3,10 +3,13 @@ package spring.reborn.domain.reborn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import spring.reborn.config.BaseException;
 import spring.reborn.config.BaseResponse;
+import spring.reborn.domain.awsS3.AwsS3Service;
 import spring.reborn.domain.reborn.model.*;
 
 import java.util.List;
@@ -21,18 +24,27 @@ public class RebornController {
     private final RebornProvider rebornProvider;
     @Autowired
     private final RebornService rebornService;
+    @Autowired
+    private final AwsS3Service awsS3Service;
 
-    public RebornController(RebornProvider rebornProvider, RebornService rebornService) {
+    public RebornController(RebornProvider rebornProvider, RebornService rebornService, AwsS3Service awsS3Service) {
         this.rebornProvider = rebornProvider;
         this.rebornService = rebornService;
+        this.awsS3Service = awsS3Service;
     }
 
     /* 상품 생성 */
     @ResponseBody
-    @PostMapping("/create")
+    @PostMapping(value = "/create", consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE})
     @Transactional
-    public BaseResponse<PostRebornRes> createReborn(@RequestBody PostRebornReq postRebornReq) {
+    public BaseResponse<PostRebornRes> createReborn(@RequestPart PostRebornReq postRebornReq,
+                                                    @RequestParam(name = "images") List<MultipartFile> multipartFile) {
         try {
+            List<String> fileUrlList = awsS3Service.uploadImage(multipartFile);
+
+            if (fileUrlList.size() >= 1) {
+                postRebornReq.setProductImg(fileUrlList.get(0));
+            }
             PostRebornRes postRebornRes = rebornService.createReborn(postRebornReq);
             return new BaseResponse<>(postRebornRes);
         } catch (BaseException exception) {
